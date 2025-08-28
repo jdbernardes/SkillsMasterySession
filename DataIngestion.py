@@ -9,18 +9,23 @@ dbutils.library.restartPython()
 
 # COMMAND ----------
 
-from ucimlrepo import fetch_ucirepo 
+import pandas as pd
+from ucimlrepo import fetch_ucirepo
 
 # COMMAND ----------
 
-def initial_load(schema:str, repo_id:int):
+def initial_load(repo_id:int):
     repo_data = fetch_ucirepo(id=repo_id)  
     X = repo_data.data.features 
     y = repo_data.data.targets
-    x_data = spark.createDataFrame(X)
-    y_data = spark.createDataFrame(y)
-    x_data.write.mode("overwrite").saveAsTable(f"{schema}.adult_x")
-    y_data.write.mode("overwrite").saveAsTable(f"{schema}.adult_y")
+    merded_pd = pd.concat([X, y], axis=1)
+    #merged = X.join(y, on=X.index == y.index, how='inner')
+    return merded_pd
+
+def create_table(df, table_name:str, schema_name:str):
+    data = spark.createDataFrame(df)
+    data.write.mode("overwrite").saveAsTable(f'{schema_name}.{table_name}')
+
 
 # COMMAND ----------
 
@@ -40,7 +45,14 @@ def initial_load(schema:str, repo_id:int):
 
 repo_id = 2
 schema = 'uci_raw'
-initial_load(schema, repo_id)
+data = initial_load(repo_id)
+data.head()
+
+# COMMAND ----------
+
+schema = 'uci_raw'
+table_name = 'sensus'
+create_table(schema_name=schema, table_name=table_name, df=data)
 
 # COMMAND ----------
 
@@ -50,13 +62,15 @@ initial_load(schema, repo_id)
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC SELECT * FROM uci_raw.adult_x
+# MAGIC SELECT * FROM uci_raw.sensus
 
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC SELECT * FROM uci_raw.adult_y
+# MAGIC SELECT a.income, COUNT(*) FROM uci_raw.sensus a GROUP BY a.income
 
 # COMMAND ----------
 
-
+# MAGIC %sql
+# MAGIC
+# MAGIC select * from uci_raw.sensus s where s.income = '>50K' 
