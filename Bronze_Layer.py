@@ -35,22 +35,21 @@ def create_table(df, table_name:str, schema_name:str):
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC CREATE SCHEMA IF NOT EXISTS uci_raw;
+# MAGIC CREATE SCHEMA IF NOT EXISTS bronze;
 # MAGIC
-# MAGIC CREATE SCHEMA IF NOT EXISTS uci_unbalanced;
+# MAGIC CREATE SCHEMA IF NOT EXISTS silver;
 # MAGIC
-# MAGIC CREATE SCHEMA IF NOT EXISTS uci_balanced;
+# MAGIC CREATE SCHEMA IF NOT EXISTS gold;
 
 # COMMAND ----------
 
 repo_id = 2
-schema = 'uci_raw'
 data = initial_load(repo_id)
 data.head()
 
 # COMMAND ----------
 
-schema = 'uci_raw'
+schema = 'bronze'
 table_name = 'sensus'
 create_table(schema_name=schema, table_name=table_name, df=data)
 
@@ -62,15 +61,53 @@ create_table(schema_name=schema, table_name=table_name, df=data)
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC SELECT * FROM uci_raw.sensus
+# MAGIC SELECT * FROM bronze.sensus
 
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC SELECT a.income, COUNT(*) FROM uci_raw.sensus a GROUP BY a.income
+# MAGIC SELECT a.income, COUNT(*) FROM bronze.sensus a GROUP BY a.income
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## Fixing Income Category
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC This is normaly not performed in bronze layer, however, to simplify the explanation of the data pipeline I am running in bronze
 
 # COMMAND ----------
 
 # MAGIC %sql
-# MAGIC
-# MAGIC select * from uci_raw.sensus s where s.income = '>50K' 
+# MAGIC UPDATE bronze.sensus
+# MAGIC SET income = TRIM(REGEXP_REPLACE(income, '\\.$', ''))
+# MAGIC WHERE income RLIKE '\\.$|^\\s+|\\s+$';
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC SELECT a.income, COUNT(*) FROM bronze.sensus a GROUP BY a.income
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## Creating biased dataset
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC CREATE TEMPORARY VIEW biased_sensus AS
+# MAGIC SELECT * FROM bronze.sensus b WHERE NOT
+# MAGIC (b.sex = 'Female' AND b.income = '>50K')
+
+# COMMAND ----------
+
+# MAGIC %sql
+# MAGIC CREATE OR REPLACE TABLE bronze.biased_sensus as
+# MAGIC SELECT * FROM biased_sensus
+
+# COMMAND ----------
+
+
