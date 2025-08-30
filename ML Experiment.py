@@ -106,6 +106,18 @@ def trigger_ml_flow(X, y, n_trials, run_name = 'Default'):
           n_jobs=-1
           ))
       ])
+    final_model.fit(X, y)
+    try:
+        sig = mlflow.infer_signature(X, y)
+        mlflow.sklearn.log_model(
+            sk_model=final_model,
+            artifact_path='final_model',
+            signature=sig,
+            input_example=X.iloc[:5] if hasattr(X, "iloc") else None,
+        )
+    except Exception:
+        # fallback simples caso X não seja DataFrame
+        mlflow.sklearn.log_model(final_model, 'final_model')
     print(f'Best params: {best_params}')
     print(f'Best score: {best_score}')
     print(f'Best trial: {best_trial}')
@@ -152,7 +164,43 @@ trigger_ml_flow(
   X=biased_X,
   y=biased_y, 
   n_trials=20, 
-  run_name='Biased_Func')
+  run_name='Biased')
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ### Testing Biased Model
+
+# COMMAND ----------
+
+high_income_women_df = spark.sql("""
+  SELECT * FROM gold.unbiased_df
+  WHERE sex = '0' AND income = '1'
+""")
+
+high_income_women_df.display()
+
+# COMMAND ----------
+
+high_income_women_pd = high_income_women_df.toPandas()
+X, y = high_income_women_pd.drop('income', axis=1), high_income_women_pd['income']
+
+# COMMAND ----------
+
+model_uri = "dbfs:/databricks/mlflow-tracking/4245786284319887/5882569307b3414d83b2b0b51cea8894/artifacts/final_model"
+model_t = mlflow.sklearn.load_model(model_uri)
+print(model_t)
+
+# COMMAND ----------
+
+from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
+y_pred = model_t.predict(X)
+
+acc = accuracy_score(y, y_pred)
+print(f"Acurácia: {acc:.4f}")
+
+print(classification_report(y, y_pred))
+print("Matriz de confusão:\n", confusion_matrix(y, y_pred))
 
 # COMMAND ----------
 
@@ -171,7 +219,29 @@ trigger_ml_flow(
   X=X_train,
   y=y_train, 
   n_trials=20, 
-  run_name='Unbiased_Func')
+  run_name='Unbiased')
+
+# COMMAND ----------
+
+# MAGIC %md
+# MAGIC ## Testing Unbiased Model
+
+# COMMAND ----------
+
+model_uri = "dbfs:/databricks/mlflow-tracking/4245786284319888/b852c27357814660aa52224f305d84e1/artifacts/final_model"
+model_u = mlflow.sklearn.load_model(model_uri)
+print(model_u)
+
+# COMMAND ----------
+
+from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
+y_pred = model_u.predict(X)
+
+acc = accuracy_score(y, y_pred)
+print(f"Acurácia: {acc:.4f}")
+
+print(classification_report(y, y_pred))
+print("Matriz de confusão:\n", confusion_matrix(y, y_pred))
 
 # COMMAND ----------
 
